@@ -1,0 +1,24 @@
+# Dataset images
+data/raw/*
+data/processed/*
+data/rejected/*
+
+# Keep metadata
+!data/metadata.csv
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+mineart-venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
