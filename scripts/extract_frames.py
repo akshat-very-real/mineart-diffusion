@@ -1,5 +1,5 @@
 """
-MineArt Video Frame Extractor (High-Performance Multi-Threaded Edition)
+MineArt Video Frame Extractor
 
 Extracts evenly-spaced frames from gameplay videos into data/images/
 and tracks dataset metadata in data/metadata.csv.
@@ -37,14 +37,7 @@ def clean_subject_name(name: str) -> str:
 
 
 def get_target_count_for_duration(duration_seconds: float) -> int:
-    """
-    Determines how many frames to extract based on video duration:
-      • >= 10 minutes (>= 600s)       -> 10000 frames
-      • 5 to 10 minutes (300s - 600s) -> 5000 frames
-      • 3 to 5 minutes (180s - 300s)  -> 1000 frames
-      • 1.5 to 3 minutes (90s - 180s) -> 500 frames
-      • < 1.5 minutes (< 90s)         -> 100 frames
-    """
+    
     if duration_seconds >= 600.0:
         return 10000
     elif duration_seconds >= 300.0:
@@ -87,7 +80,6 @@ def format_tags(raw_tags: Optional[List[str]]) -> str:
 
 
 def initialize_metadata(metadata_file: Path):
-    """Create metadata.csv with headers if it does not exist, or ensure 'tags' column exists."""
     metadata_file.parent.mkdir(parents=True, exist_ok=True)
     if not metadata_file.exists():
         with open(metadata_file, "w", newline="", encoding="utf-8") as f:
@@ -130,11 +122,11 @@ def _save_image_worker(out_path: str, frame, compression_level: int = 1):
 
 def extract_from_video(
     video_path: Path,
-    output_dir: Path,
-    metadata_file: Path,
+    output_dir: Path = DEFAULT_RAW_DIR,
+    metadata_file: Path = DEFAULT_METADATA_FILE,
     target_count: Optional[int] = None,
     tags: Optional[List[str]] = None,
-    max_workers: int = 8,
+    max_workers: int = min(16, (os.cpu_count() or 4)),
     compression_level: int = 1
 ) -> int:
     """
@@ -248,43 +240,18 @@ def extract_from_video(
 
 def main():
     parser = argparse.ArgumentParser(description="MineArt - High-Speed Video Frame Extractor")
-    parser.add_argument("--video", type=str, default=None, help="Path to a single video file")
-    parser.add_argument("--video-dir", type=str, default=str(DEFAULT_VIDEO_DIR), help="Directory containing recorded videos")
-    parser.add_argument("--output", type=str, default=str(DEFAULT_RAW_DIR), help="Output folder for raw images (default: data/images)")
-    parser.add_argument("--metadata", type=str, default=str(DEFAULT_METADATA_FILE), help="Metadata CSV path (default: data/metadata.csv)")
-    parser.add_argument("--count", type=int, default=None, help="Optional manual override for number of frames to extract")
     parser.add_argument("--tags", nargs="*", default=None, help='One or more tags for the extracted images (e.g. --tags "cherry_blossom" "minecraft_block_geometry")')
-    parser.add_argument("--workers", type=int, default=min(16, (os.cpu_count() or 4)), help="Number of concurrent image saving threads (default: CPU cores)")
-    parser.add_argument("--compression", type=int, default=1, choices=range(0, 10), help="PNG compression level 0-9 (default: 1 for fastest lossless)")
 
     args = parser.parse_args()
 
-    output_dir = Path(args.output)
-    metadata_file = Path(args.metadata)
+    output_dir = DEFAULT_RAW_DIR
+    metadata_file = DEFAULT_METADATA_FILE
+    vid_dir = DEFAULT_VIDEO_DIR
 
     print("\n" + "=" * 60)
     print("      MineArt High-Speed Frame Extractor")
     print("=" * 60)
 
-    # 1. Single video mode
-    if args.video:
-        vid_path = Path(args.video)
-        if not vid_path.exists():
-            print(f"[ERROR] Video file not found: {vid_path}")
-            return
-        extract_from_video(
-            vid_path,
-            output_dir,
-            metadata_file,
-            target_count=args.count,
-            tags=args.tags,
-            max_workers=args.workers,
-            compression_level=args.compression
-        )
-        return
-
-    # 2. Batch directory mode
-    vid_dir = Path(args.video_dir)
     if not vid_dir.exists():
         print(f"[INFO] Video directory does not exist: {vid_dir}")
         print("Creating folder. Place your recorded videos inside:")
@@ -297,7 +264,6 @@ def main():
     if not videos:
         print(f"[INFO] No video files found in: {vid_dir}")
         print(f"Supported formats: {', '.join(SUPPORTED_EXTENSIONS)}")
-        print("Tip: Name your recording after the subject (e.g. pig.mp4, cow.mp4, ocean.mp4)")
         return
 
     print(f"Found {len(videos)} video file(s) in {vid_dir}:\n")
@@ -308,12 +274,9 @@ def main():
     for v in videos:
         count = extract_from_video(
             v,
-            output_dir,
-            metadata_file,
-            target_count=args.count,
-            tags=args.tags,
-            max_workers=args.workers,
-            compression_level=args.compression
+            output_dir=output_dir,
+            metadata_file=metadata_file,
+            tags=args.tags
         )
         total += count
 
