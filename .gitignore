@@ -1,24 +1,32 @@
-# Dataset images
-data/raw/*
-data/processed/*
-data/rejected/*
-
-# Keep metadata
-!data/metadata.csv
-
-# Python
+# Byte-compiled / optimized files
 __pycache__/
 *.py[cod]
+*$py.class
 
-# Virtual environments
+# PyTorch Checkpoints & Saved Models
+checkpoints/
+*.pt
+*.pth
+
+# Virtual Environments
 .venv/
 venv/
 mineart-venv/
+ENV/
 
-# IDE
+# IDE & OS
 .vscode/
 .idea/
-
-# OS
-Thumbs.db
 .DS_Store
+Thumbs.db
+
+# Large Dataset Media (protect git repository size)
+data/images/*
+data/processed/*
+
+# Dataset Metadata (always tracked)
+
+
+# Secrets
+.env
+.env.local

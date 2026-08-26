@@ -1,85 +1,79 @@
 # MineArt Diffusion
 
-MineArt Diffusion is a machine-learning project aimed at generating Minecraft-style artwork and paintings using diffusion models.
+MineArt Diffusion is a machine-learning project for training a custom Denoising Diffusion Probabilistic Model (DDPM) from scratch on authentic Minecraft imagery.
 
-## Phase 1: Dataset Creation & Preprocessing
+---
 
-Phase 1 provides an automated, reproducible data pipeline that converts raw in-game Minecraft screenshots into a clean, normalized, ML-ready dataset.
+## 🎯 Project Goal & Architecture
 
-### Project Structure (Phase 1)
+Train a lightweight, custom diffusion model from scratch on a target dataset of **~50,000 Minecraft images** collected from in-game exploration, gameplay recordings, and community sources.
 
+```text
+Minecraft Raw Screenshots (~50k target)
+                 ↓
+      Dataset Preprocessing
+(Validation, deduplication, crop/scale, split)
+                 ↓
+      Custom Diffusion Model
+      (DDPM + UNet Architecture)
+                 ↓
+     Minecraft Artwork Generation
 ```
-MineArt-Diffusion/
+
+> **Note:** MineArt uses **no external pretrained diffusion models** (no SDXL, FLUX, or commercial image APIs). The primary ML contribution is training our own model directly on the Minecraft domain.
+
+---
+
+## 📁 Repository Structure
+
+```text
+mineart-diffusion/
 │
 ├── data/
-│   ├── raw/                  # Place raw screenshots here (.png, .jpg, etc.)
-│   └── processed/            # Generated clean dataset
-│       ├── train/            # Training split (e.g. 80%)
-│       ├── validation/       # Validation split (e.g. 10%)
-│       ├── test/             # Test split (e.g. 10%)
-│       ├── reports/          # Visual summary plots and sample contact sheet
-│       ├── dataset_metadata.csv
-│       └── dataset_statistics.json
+│   ├── raw/                  # Original, unedited Minecraft screenshots
+│   └── processed/            # Normalized, cleaned dataset splits (train / val / test)
 │
 ├── scripts/
-│   └── prepare_dataset.py    # Main CLI preprocessing pipeline
+│   ├── watch_ss.py           # Real-time screenshot watcher from .minecraft
+│   ├── extract_frames.py     # Video gameplay frame extractor
+│   ├── prepare_dataset.py    # Automated dataset validation, cleaning & split pipeline
+│   └── train_diffusion_32x32.py # Custom from-scratch PyTorch DDPM training script
 │
 ├── notebooks/
-│   └── dataset_analysis.ipynb # Interactive exploration and quality analysis
+│   └── dataset_analysis.ipynb # Interactive exploration and dataset analytics
 │
-├── README.md
-├── PROJECT_CONTEXT.md
-└── requirements.txt
+├── requirements.txt          # Minimal ML dependencies
+├── README.md                 # Project documentation
+└── .gitignore
 ```
 
 ---
 
-### Getting Started
+## 🚀 Quickstart
 
-#### 1. Install Dependencies
+### 1. Environment Setup
 ```bash
 pip install -r requirements.txt
 ```
 
-#### 2. Add Raw Screenshots
-Copy your Minecraft screenshots into the `data/raw/` directory.
+### 2. Dataset Collection
+- **Live Screenshot Watcher**:
+  ```bash
+  python scripts/watch_ss.py
+  ```
+- **Video Gameplay Extraction**:
+  ```bash
+  python scripts/extract_frames.py --video path/to/gameplay.mp4 --interval 2.0
+  ```
 
-#### 3. Run Preprocessing Pipeline
+### 3. Dataset Preprocessing & Cleaning
+Run the automated cleaning and split pipeline:
 ```bash
-python scripts/prepare_dataset.py
+python scripts/prepare_dataset.py --input-dir data/raw --output-dir data/processed --target-size 32
 ```
 
-##### Optional CLI Arguments:
-- `--input`: Path to raw screenshots folder (default: `data/raw`)
-- `--output`: Path to processed destination (default: `data/processed`)
-- `--size`: Target square resolution in pixels (default: `64` for 64x64)
-- `--train-ratio`: Proportion for training split (default: `0.8`)
-- `--val-ratio`: Proportion for validation split (default: `0.1`)
-- `--test-ratio`: Proportion for test split (default: `0.1`)
-- `--seed`: Random seed for reproducible splitting (default: `42`)
-- `--no-plots`: Disable automatic visual report generation
-
-Example with custom parameters:
+### 4. Custom Diffusion Model Training
+Train the custom DDPM model on your processed Minecraft dataset:
 ```bash
-python scripts/prepare_dataset.py --input data/raw --output data/processed --size 64 --train-ratio 0.8 --val-ratio 0.1 --test-ratio 0.1
-```
-
----
-
-### Pipeline Capabilities
-- **Recursive Scanning**: Detects `.png`, `.jpg`, `.jpeg`, `.webp`, and `.bmp` files.
-- **Integrity Validation**: Catches and logs corrupt or unreadable image files without crashing.
-- **Deduplication**: Calculates MD5 checksums to detect and separate duplicate screenshots.
-- **Aspect Ratio Normalization**: Center-crops images to square aspect ratio (without distortion) and resizes to target resolution (64x64) using Lanczos resampling.
-- **Color Normalization**: Converts all images to standard 3-channel RGB PNG format.
-- **Split Management**: Partition dataset deterministically into `train/`, `validation/`, and `test/` splits with clean sequential filenames (`train_00001.png`, etc.).
-- **Metadata & Statistics**: Exports `dataset_metadata.csv` and `dataset_statistics.json`.
-- **Visual Reports**: Generates distribution graphs and a sample contact sheet in `data/processed/reports/`.
-
----
-
-### Dataset Analysis Notebook
-Launch Jupyter to explore dataset metrics, inspect distributions, and verify training readiness:
-```bash
-jupyter notebook notebooks/dataset_analysis.ipynb
+python scripts/train_diffusion_32x32.py --data-dir data/processed/train --epochs 50 --batch-size 32
 ```

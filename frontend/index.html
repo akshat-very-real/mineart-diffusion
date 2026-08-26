@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MineArt Diffusion — Research Demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- HEADER -->
+    <header class="header">
+      <div class="header-content">
+        <h1>MineArt Diffusion</h1>
+        <p class="subtitle">Custom Denoising Diffusion Probabilistic Model (DDPM) for Minecraft Artwork</p>
+      </div>
+    </header>
+
+    <!-- MAIN INTERFACE -->
+    <main class="main-grid">
+      
+      <!-- INPUT PANEL -->
+      <section class="panel input-panel">
+        <h2>Input</h2>
+        
+        <!-- Mode Switcher -->
+        <div class="mode-selector">
+          <button type="button" class="mode-btn active" id="mode-text-btn" onclick="setMode('text')">Text Prompt</button>
+          <button type="button" class="mode-btn" id="mode-image-btn" onclick="setMode('image')">Image Input</button>
+        </div>
+
+        <!-- 1. TEXT PROMPT AREA -->
+        <div id="text-input-section" class="form-section">
+          <label for="prompt-input" class="form-label">Prompt</label>
+          <textarea 
+            id="prompt-input" 
+            rows="5" 
+            placeholder="Describe the Minecraft scene to generate (e.g. A snowy mountain summit with pine trees under a clear blue sky)..."
+          ></textarea>
+        </div>
+
+        <!-- 2. IMAGE-TO-IMAGE UPLOAD AREA -->
+        <div id="image-input-section" class="form-section hidden">
+          <label for="image-file-input" class="form-label">Source Image</label>
+          <div class="upload-box" id="upload-box" onclick="document.getElementById('image-file-input').click()">
+            <input type="file" id="image-file-input" accept="image/png, image/jpeg, image/webp" class="file-input" onchange="handleFileSelect(event)">
+            <div id="upload-empty-state">
+              <p class="upload-text">Click to select an image file</p>
+              <p class="upload-subtext">PNG or JPG</p>
+            </div>
+            <div id="upload-preview-state" class="hidden">
+              <img id="upload-preview-img" src="" alt="Upload Preview">
+              <button type="button" class="clear-btn" onclick="clearUpload(event)">Remove Image</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ACTION BUTTON -->
+        <button type="button" class="btn btn-primary" id="generate-btn" onclick="handleGenerate()">
+          Generate Image
+        </button>
+
+        <!-- Status Message -->
+        <div id="status-message" class="status-msg hidden"></div>
+      </section>
+
+      <!-- RESULT PANEL -->
+      <section class="panel result-panel">
+        <h2>Output</h2>
+        
+        <div class="result-container" id="result-container">
+          
+          <!-- Empty Placeholder State -->
+          <div id="result-empty-state" class="empty-state">
+            <p class="empty-text">No image generated yet.</p>
+            <p class="empty-subtext">Enter a prompt or select an image and click Generate.</p>
+          </div>
+
+          <!-- Loading State -->
+          <div id="result-loading-state" class="loading-state hidden">
+            <div class="spinner"></div>
+            <p id="loading-text">Generating Minecraft artwork...</p>
+          </div>
+
+          <!-- Image Display State -->
+          <div id="result-image-state" class="image-state hidden">
+            <img id="generated-image" src="" alt="Generated MineArt Output">
+            <div class="result-actions">
+              <a id="download-btn" href="/api/download" download="mineart_diffusion_32x32.png" class="btn btn-secondary">Download Image (.png)</a>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <p>MineArt Diffusion — Dataset Collection & Custom ML Research</p>
+    </footer>
+
+  </div>
+
+  <script src="app.js?v=4"></script>
+</body>
+</html>
+
+
