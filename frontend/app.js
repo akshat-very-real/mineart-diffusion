@@ -1,5 +1,5 @@
 /**
- * MineArt Diffusion — Minimal Frontend Controller
+ * MineArt Diffusion - Frontend
  */
 
 let currentMode = "text";
