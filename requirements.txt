@@ -1,16 +1,27 @@
 # Core Machine Learning & Diffusion
 torch>=2.0.0
 torchvision>=0.15.0
+torchaudio>=2.0.0
 numpy>=1.24.0
 Pillow>=10.0.0
 pandas>=2.0.0
 matplotlib>=3.7.0
+seaborn>=0.12.0
+scikit-learn>=1.3.0
+scipy>=1.11.0
 tqdm>=4.65.0
 
-# Dataset Collection Tooling
+# Dataset Collection & Image Processing
 watchdog>=3.0.0
 opencv-python>=4.8.0
+
+# Web API Backend & Serving (for frontend/app.js)
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+python-multipart>=0.0.6
+pydantic>=2.0.0
 
 # Analysis & Exploration
 jupyterlab>=4.0.0
 ipykernel>=6.25.0
+
