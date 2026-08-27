@@ -8,6 +8,7 @@ checkpoints/
 *.pt
 *.pth
 
+
 # Virtual Environments
 .venv/
 venv/
@@ -24,9 +25,12 @@ Thumbs.db
 data/images/*
 data/processed/*
 
-# Dataset Metadata (always tracked)
 
 
 # Secrets
 .env
 .env.local
+
+# File
+
+PROJECT_CONTEXT.md
