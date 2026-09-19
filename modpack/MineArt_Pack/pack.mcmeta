@@ -1,0 +1,10 @@
+{
+  "pack": {
+    "pack_format": 15,
+    "supported_formats": [
+      4,
+      40
+    ],
+    "description": "MineArt Diffusion: MineArt AI Paintings (AI Generated)"
+  }
+}

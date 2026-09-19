@@ -356,3 +356,232 @@ textarea:focus {
 .hidden {
   display: none !important;
 }
+
+/* Minecraft Live Integration Controls */
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  background-color: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  font-weight: 500;
+}
+
+.minecraft-export-section {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border-radius: var(--radius);
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.slot-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.form-select {
+  flex: 1;
+  min-width: 160px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #86efac;
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  background: #ffffff;
+  color: #14532d;
+  outline: none;
+}
+
+.btn-minecraft {
+  background-color: #15803d;
+  color: #ffffff;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.5rem 0.85rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-minecraft:hover {
+  background-color: #166534;
+}
+
+.btn-minecraft:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-outline {
+  display: inline-block;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.8125rem;
+  color: var(--text-main);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  text-decoration: none;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.btn-outline:hover {
+  background: var(--bg-subtle);
+  border-color: #d1d5db;
+}
+
+.mc-toast {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.mc-toast.success {
+  background-color: #f0fdf4;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.mc-toast.error {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+/* Guardrail & Safety Controls */
+.prompt-hint-pill {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-family: ui-monospace, monospace;
+}
+
+.guardrail-control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+}
+
+.guardrail-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  user-select: none;
+}
+
+.guardrail-toggle input[type="checkbox"] {
+  accent-color: var(--btn-primary-bg);
+  cursor: pointer;
+}
+
+.guardrail-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.guardrail-badge.disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+
+/* Result Blocked State */
+.blocked-state {
+  width: 100%;
+  padding: 1.25rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  animation: fadeIn 0.2s ease-in;
+}
+
+.blocked-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.blocked-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #991b1b;
+  margin: 0;
+}
+
+.blocked-reason {
+  font-size: 0.8125rem;
+  color: #7f1d1d;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.blocked-suggestion {
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  background: #ffffff;
+  border: 1px solid #fee2e2;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  color: var(--text-main);
+}
+
+.blocked-suggestion ul {
+  margin: 0.25rem 0 0 1.25rem;
+  padding: 0;
+}
+
+.blocked-suggestion code {
+  background: #f3f4f6;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.blocked-suggestion code:hover {
+  background: #e5e7eb;
+}
+

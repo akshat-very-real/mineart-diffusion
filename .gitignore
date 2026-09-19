@@ -23,14 +23,20 @@ Thumbs.db
 
 # Large Dataset Media (protect git repository size)
 data/images/*
-data/processed/*
+data/processed_64x64/*
+data/*.7z
+data/*.zip
 
+# Temporary & Word Lock Files
+~$*
+*.tmp
+output_samples/
 
+SRS_v1*.docx
 
 # Secrets
 .env
 .env.local
 
-# File
-
+# Project context
 PROJECT_CONTEXT.md

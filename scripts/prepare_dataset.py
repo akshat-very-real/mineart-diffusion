@@ -15,6 +15,7 @@ from typing import Tuple
 
 import pandas as pd
 from PIL import Image
+# pyrefly: ignore
 from torchvision import transforms
 from tqdm import tqdm
 
@@ -23,7 +24,7 @@ def prepare_widescreen_dataset(
     metadata_csv: str = "data/metadata.csv",
     raw_dir: str = "data/images",
     output_dir: str = "data/processed_widescreen",
-    resolution: Tuple[int, int] = (384, 224),  # Multiples of 16 for clean U-Net downsampling
+    resolution: Tuple[int, int] = (384, 224),
     create_zip: bool = True,
 ):
     raw_path = Path(raw_dir)

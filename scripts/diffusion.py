@@ -138,9 +138,10 @@ class MineArtDataset(Dataset):
         self,
         metadata_csv: str = "data/metadata.csv",
         image_dir: str = "data/images",
-        target_size: Tuple[int, int] = (384, 224),
+        target_size: Tuple[int, int] = (64, 64),
         max_prompt_length: int = 16,
         tokenizer: Optional[PromptTokenizer] = None,
+        max_samples: Optional[int] = None,
     ) -> None:
         self.image_dir = Path(image_dir)
         self.target_size = target_size
@@ -149,13 +150,18 @@ class MineArtDataset(Dataset):
         if not Path(metadata_csv).exists():
             raise FileNotFoundError(f"Metadata file not found: {metadata_csv}")
 
-        self.df = pd.read_csv(metadata_csv)
+        full_df = pd.read_csv(metadata_csv)
 
         if tokenizer is None:
             self.tokenizer = PromptTokenizer()
-            self.tokenizer.build_from_dataframe(self.df)
+            self.tokenizer.build_from_dataframe(full_df)
         else:
             self.tokenizer = tokenizer
+
+        if max_samples is not None and max_samples > 0:
+            self.df = full_df.iloc[:max_samples].copy()
+        else:
+            self.df = full_df
 
         self.filenames = self.df["filename"].tolist()
         self.prompts = []
@@ -472,23 +478,40 @@ class GaussianDiffusionEngine:
         uncond_tokens: torch.Tensor,
         shape: Tuple[int, int, int, int] = (1, 3, 64, 64),
         guidance_scale: float = 2.0,
-        ddim_steps: int = 100,
+        ddim_steps: int = 50,
+        eta: float = 0.0,
     ) -> torch.Tensor:
         model.eval()
         img = torch.randn(shape, device=self.device)
 
-        step_interval = max(1, self.timesteps // ddim_steps)
-        timesteps_to_sample = list(range(0, self.timesteps, step_interval))
+        step_ratio = max(1, self.timesteps // ddim_steps)
+        timesteps = list(range(0, self.timesteps, step_ratio))
 
-        for t in tqdm(reversed(timesteps_to_sample), total=len(timesteps_to_sample), desc="Rendering Painting"):
-            img = self.p_sample(
-                model=model,
-                x=img,
-                t=t,
-                prompt_tokens=prompt_tokens,
-                uncond_tokens=uncond_tokens,
-                guidance_scale=guidance_scale,
-            )
+        for i, t in enumerate(tqdm(reversed(timesteps), total=len(timesteps), desc="Rendering Painting")):
+            prev_t = timesteps[len(timesteps) - 2 - i] if (len(timesteps) - 2 - i) >= 0 else -1
+            t_tensor = torch.full((img.shape[0],), t, device=self.device, dtype=torch.long)
+
+            if guidance_scale > 1.0:
+                x_double = torch.cat([img, img], dim=0)
+                t_double = torch.cat([t_tensor, t_tensor], dim=0)
+                p_double = torch.cat([prompt_tokens, uncond_tokens], dim=0)
+                noise_pred = model(x_double, t_double, p_double)
+                cond_noise, uncond_noise = noise_pred.chunk(2, dim=0)
+                eps = uncond_noise + guidance_scale * (cond_noise - uncond_noise)
+            else:
+                eps = model(img, t_tensor, prompt_tokens)
+
+            alpha_t = self.alphas_cumprod[t]
+            alpha_prev = self.alphas_cumprod[prev_t] if prev_t >= 0 else torch.tensor(1.0, device=self.device)
+
+            x0_pred = (img - (1.0 - alpha_t).sqrt() * eps) / alpha_t.sqrt()
+            x0_pred = torch.clamp(x0_pred, -1.0, 1.0)
+
+            sigma = eta * ((1.0 - alpha_prev) / (1.0 - alpha_t) * (1.0 - alpha_t / alpha_prev)).sqrt() if eta > 0 and prev_t >= 0 else 0.0
+            dir_xt = (1.0 - alpha_prev - sigma ** 2).clamp(min=0.0).sqrt() * eps
+            img = alpha_prev.sqrt() * x0_pred + dir_xt
+            if sigma > 0:
+                img = img + sigma * torch.randn_like(img)
 
         return (img.clamp(-1.0, 1.0) + 1.0) / 2.0
 
@@ -501,6 +524,7 @@ class GaussianDiffusionEngine:
         uncond_tokens: torch.Tensor,
         strength: float = 0.60,
         guidance_scale: float = 2.0,
+        ddim_steps: int = 50,
     ) -> torch.Tensor:
         model.eval()
         start_timestep = int(self.timesteps * strength)
@@ -510,29 +534,74 @@ class GaussianDiffusionEngine:
         noise = torch.randn_like(init_image)
         img = self.q_sample(init_image, t_start, noise=noise)
 
-        for t in tqdm(reversed(range(start_timestep)), total=start_timestep, desc="Transforming Canvas"):
-            img = self.p_sample(
-                model=model,
-                x=img,
-                t=t,
-                prompt_tokens=prompt_tokens,
-                uncond_tokens=uncond_tokens,
-                guidance_scale=guidance_scale,
-            )
+        step_ratio = max(1, self.timesteps // ddim_steps)
+        all_timesteps = list(range(0, self.timesteps, step_ratio))
+        timesteps = [t for t in all_timesteps if t <= start_timestep]
+        if not timesteps:
+            timesteps = [start_timestep]
+
+        for i, t in enumerate(tqdm(reversed(timesteps), total=len(timesteps), desc="Transforming Canvas")):
+            prev_t = timesteps[len(timesteps) - 2 - i] if (len(timesteps) - 2 - i) >= 0 else -1
+            t_tensor = torch.full((img.shape[0],), t, device=self.device, dtype=torch.long)
+
+            if guidance_scale > 1.0:
+                x_double = torch.cat([img, img], dim=0)
+                t_double = torch.cat([t_tensor, t_tensor], dim=0)
+                p_double = torch.cat([prompt_tokens, uncond_tokens], dim=0)
+                noise_pred = model(x_double, t_double, p_double)
+                cond_noise, uncond_noise = noise_pred.chunk(2, dim=0)
+                eps = uncond_noise + guidance_scale * (cond_noise - uncond_noise)
+            else:
+                eps = model(img, t_tensor, prompt_tokens)
+
+            alpha_t = self.alphas_cumprod[t]
+            alpha_prev = self.alphas_cumprod[prev_t] if prev_t >= 0 else torch.tensor(1.0, device=self.device)
+
+            x0_pred = (img - (1.0 - alpha_t).sqrt() * eps) / alpha_t.sqrt()
+            x0_pred = torch.clamp(x0_pred, -1.0, 1.0)
+            dir_xt = (1.0 - alpha_prev).clamp(min=0.0).sqrt() * eps
+            img = alpha_prev.sqrt() * x0_pred + dir_xt
 
         return (img.clamp(-1.0, 1.0) + 1.0) / 2.0
+
+
+class EMAModel:
+    """Exponential Moving Average of model weights with step warmup."""
+    def __init__(self, model: nn.Module, decay: float = 0.9999):
+        self.decay = decay
+        self.step = 0
+        self.shadow = {
+            name: param.clone().detach()
+            for name, param in model.named_parameters()
+            if param.requires_grad
+        }
+
+    def update(self, model: nn.Module) -> None:
+        self.step += 1
+        decay = min(self.decay, (1.0 + self.step) / (10.0 + self.step))
+        with torch.no_grad():
+            for name, param in model.named_parameters():
+                if param.requires_grad and name in self.shadow:
+                    self.shadow[name].data.lerp_(param.data, 1.0 - decay)
+
+    def copy_to(self, model: nn.Module) -> None:
+        for name, param in model.named_parameters():
+            if param.requires_grad and name in self.shadow:
+                param.data.copy_(self.shadow[name].data)
 
 
 def train_diffusion(
     metadata_csv: str = "data/metadata.csv",
     image_dir: str = "data/images",
     epochs: int = 50,
-    batch_size: int = 128,
-    lr: float = 1e-4,
+    batch_size: int = 32,
+    lr: float = 2e-4,
     timesteps: int = 1000,
     uncond_prob: float = 0.15,
     save_dir: str = "checkpoints",
     resume_path: Optional[str] = None,
+    target_size: Tuple[int, int] = (64, 64),
+    max_samples: Optional[int] = None,
 ) -> None:
     save_path = Path(save_dir)
     save_path.mkdir(parents=True, exist_ok=True)
@@ -543,7 +612,8 @@ def train_diffusion(
     dataset = MineArtDataset(
         metadata_csv=metadata_csv,
         image_dir=image_dir,
-        target_size=(384, 224),
+        target_size=target_size,
+        max_samples=max_samples,
     )
 
     tokenizer_path = save_path / "diffusion_tokenizer.json"
@@ -553,7 +623,7 @@ def train_diffusion(
         dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=4 if os.name != "nt" else 0,
+        num_workers=2 if os.name == "nt" else 4,
         pin_memory=torch.cuda.is_available(),
         drop_last=True,
     )
@@ -573,8 +643,10 @@ def train_diffusion(
     diffusion = GaussianDiffusionEngine(timesteps=timesteps, device=device)
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scaler = torch.amp.GradScaler("cuda") if device.type == "cuda" else None
+    ema = EMAModel(model, decay=0.9999)
 
     start_epoch = 1
+    best_loss = float("inf")
     if resume_path and Path(resume_path).exists():
         print(f"Resuming training from checkpoint: {resume_path}")
         checkpoint = torch.load(resume_path, map_location=device)
@@ -583,18 +655,29 @@ def train_diffusion(
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         if "epoch" in checkpoint:
             start_epoch = checkpoint["epoch"] + 1
+        if "loss" in checkpoint:
+            best_loss = float(checkpoint["loss"])
+
+    end_epoch = start_epoch + epochs - 1
+    steps_per_epoch = len(loader)
+    total_steps = epochs * steps_per_epoch
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, total_steps), eta_min=1e-5)
 
     null_tokens = dataset.tokenizer.null_tokens(dataset.max_prompt_length).to(device)
-    print(f"Beginning training: {epochs} epochs over {len(dataset)} samples (Batch Size: {batch_size})...")
+    print(f"Beginning training: {epochs} epochs (Epoch {start_epoch:02d} -> {end_epoch:02d}) over {len(dataset)} samples")
+    print(f"Batch Size: {batch_size} | Steps per Epoch: {steps_per_epoch:,} | Total Scheduled Steps: {total_steps:,}")
 
     t_start = time.time()
+    global_step = 0
 
-    for epoch in range(start_epoch, epochs + 1):
+    for epoch in range(start_epoch, end_epoch + 1):
         model.train()
         epoch_loss = 0.0
+        seen_samples = 0
         epoch_t0 = time.time()
 
-        for images, prompt_tokens in loader:
+        pbar = tqdm(loader, desc=f"Epoch {epoch:02d}/{end_epoch:02d}", unit="batch", leave=True)
+        for images, prompt_tokens in pbar:
             images = images.to(device, non_blocking=True)
             prompt_tokens = prompt_tokens.to(device, non_blocking=True)
 
@@ -614,22 +697,38 @@ def train_diffusion(
                     pred_noise = model(noisy_images, t, prompt_tokens)
                     loss = F.mse_loss(pred_noise, noise)
                 scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 pred_noise = model(noisy_images, t, prompt_tokens)
                 loss = F.mse_loss(pred_noise, noise)
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
 
-            epoch_loss += loss.item() * b
+            scheduler.step()
+            ema.update(model)
+            loss_val = loss.item()
+            epoch_loss += loss_val * b
+            seen_samples += b
+            global_step += 1
+
+            pbar.set_postfix({
+                "loss": f"{loss_val:.4f}",
+                "avg": f"{(epoch_loss / seen_samples):.4f}",
+                "lr": f"{scheduler.get_last_lr()[0]:.1e}",
+                "step": f"{global_step:,}/{total_steps:,}",
+            })
 
         avg_loss = epoch_loss / len(dataset)
         elapsed = time.time() - epoch_t0
 
-        print(f"Epoch {epoch:03d}/{epochs:03d} | MSE Loss: {avg_loss:.5f} | Time: {elapsed:.1f}s")
+        print(f"[*] Completed Epoch {epoch:02d}/{end_epoch:02d} | Avg Loss: {avg_loss:.5f} | Time: {elapsed:.1f}s")
 
-        if epoch % 5 == 0 or epoch == epochs:
+        # Save checkpoint periodically
+        if epoch % 2 == 0 or epoch == end_epoch:
             checkpoint_path = save_path / f"mineart_diffusion_epoch_{epoch}.pt"
             torch.save({
                 "epoch": epoch,
@@ -638,16 +737,35 @@ def train_diffusion(
                 "loss": avg_loss,
                 "vocab_size": len(dataset.tokenizer.vocab),
             }, checkpoint_path)
+            print(f" -> Saved checkpoint to: {checkpoint_path}")
+
+        # Update best_diffusion.pt whenever loss improves
+        if avg_loss < best_loss or not (save_path / "best_diffusion.pt").exists():
+            best_loss = avg_loss
+            ema_model = MineArtUNet(
+                in_channels=3,
+                out_channels=3,
+                base_channels=64,
+                vocab_size=len(dataset.tokenizer.vocab),
+                text_embed_dim=128,
+                time_embed_dim=128,
+            ).to(device)
+            ema_model.load_state_dict(model.state_dict())
+            ema.copy_to(ema_model)
 
             torch.save({
                 "epoch": epoch,
-                "model_state_dict": model.state_dict(),
+                "model_state_dict": ema_model.state_dict(),
                 "loss": avg_loss,
                 "vocab_size": len(dataset.tokenizer.vocab),
             }, save_path / "best_diffusion.pt")
+            print(f" -> [NEW BEST] Updated best_diffusion.pt with Loss: {best_loss:.5f}")
 
     total_time = time.time() - t_start
-    print(f"Training completed in {total_time / 60:.2f} minutes.")
+    print(f"\n============================================================")
+    print(f" Training Complete: {total_steps:,} steps in {total_time / 60:.2f} minutes.")
+    print(f" Best Loss: {best_loss:.5f} saved in 'checkpoints/best_diffusion.pt'")
+    print(f"============================================================\n")
 
 
 def generate_painting(
@@ -730,10 +848,14 @@ def generate_painting(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="MineArt Minecraft Painting Diffusion Generator")
+    parser.add_argument("--metadata", type=str, default="data/metadata.csv", help="Metadata CSV path")
+    parser.add_argument("--images", type=str, default="data/images", help="Images directory")
     parser.add_argument("--train", action="store_true", help="Start training model")
     parser.add_argument("--epochs", type=int, default=50, help="Epoch count")
-    parser.add_argument("--batch-size", type=int, default=128, help="Batch size (128 for 16GB Cloud GPU)")
-    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size (32 for 4GB GPU, 128 for 16GB Cloud GPU)")
+    parser.add_argument("--size", type=int, default=64, help="Square resolution for training (default 64)")
+    parser.add_argument("--max-samples", type=int, default=None, help="Limit number of training samples for fast testing")
+    parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate")
     parser.add_argument("--resume", type=str, default=None, help="Resume training from checkpoint")
     parser.add_argument("--prompt", type=str, default=None, help="Text prompt for synthesis")
     parser.add_argument("--image", type=str, default=None, help="Input image for image-to-image painting variation")
@@ -749,10 +871,14 @@ def main() -> None:
 
     if args.train:
         train_diffusion(
+            metadata_csv=args.metadata,
+            image_dir=args.images,
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
             resume_path=args.resume,
+            target_size=(args.size, args.size),
+            max_samples=args.max_samples,
         )
     elif args.prompt is not None or args.image is not None:
         generate_painting(

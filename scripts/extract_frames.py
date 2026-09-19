@@ -25,7 +25,7 @@ import cv2
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RAW_DIR = PROJECT_ROOT / "data" / "images"
 DEFAULT_METADATA_FILE = PROJECT_ROOT / "data" / "metadata.csv"
-DEFAULT_VIDEO_DIR = Path(r"C:\Users\Aksha\OneDrive\Videos\NVIDIA\java-runtime-epsilon")
+DEFAULT_VIDEO_DIR = Path(r"C:\Users\Aksha\OneDrive\Videos\NVIDIA\minecraft-java-exe")
 
 SUPPORTED_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".webm"}
 

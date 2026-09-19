@@ -11,9 +11,14 @@
     
     <!-- HEADER -->
     <header class="header">
-      <div class="header-content">
-        <h1>MineArt Diffusion</h1>
-        <p class="subtitle">Custom Denoising Diffusion Probabilistic Model (DDPM) for Minecraft Artwork</p>
+      <div class="header-top">
+        <div class="header-content">
+          <h1>MineArt Diffusion</h1>
+          <p class="subtitle">Custom Denoising Diffusion Model for Minecraft In-Game Paintings</p>
+        </div>
+        <div id="mc-status-badge" class="mc-badge">
+          <span>🎮</span> <span id="mc-status-text">Detecting Minecraft...</span>
+        </div>
       </div>
     </header>
 
@@ -32,12 +37,25 @@
 
         <!-- 1. TEXT PROMPT AREA -->
         <div id="text-input-section" class="form-section">
-          <label for="prompt-input" class="form-label">Prompt</label>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.375rem;">
+            <label for="prompt-input" class="form-label" style="margin-bottom: 0;">Prompt</label>
+            <span class="prompt-hint-pill" id="prompt-word-counter">0 / 16 words</span>
+          </div>
           <textarea 
             id="prompt-input" 
-            rows="5" 
+            rows="4" 
             placeholder="Describe the Minecraft scene to generate (e.g. A snowy mountain summit with pine trees under a clear blue sky)..."
+            oninput="handlePromptInput()"
           ></textarea>
+
+          <!-- Guardrail Control Bar (Option for Final Product) -->
+          <div class="guardrail-control-bar">
+            <label class="guardrail-toggle" title="Blocks random gibberish and harmful or threatening prompts">
+              <input type="checkbox" id="safety-filter-toggle" checked onchange="toggleSafetyFilter()">
+              <span class="guardrail-title">🛡️ AI Safety & Quality Filter (Final Product)</span>
+            </label>
+            <span class="guardrail-badge" id="guardrail-badge">Active</span>
+          </div>
         </div>
 
         <!-- 2. IMAGE-TO-IMAGE UPLOAD AREA -->
@@ -83,12 +101,71 @@
             <p id="loading-text">Generating Minecraft artwork...</p>
           </div>
 
+          <!-- Blocked / Moderation Rejection State -->
+          <div id="result-blocked-state" class="blocked-state hidden">
+            <div class="blocked-icon">🛡️</div>
+            <h3 id="blocked-title" class="blocked-title">Prompt Generation Blocked</h3>
+            <p id="blocked-reason" class="blocked-reason"></p>
+            <div class="blocked-suggestion">
+              <strong>💡 Suggested Prompt Examples:</strong>
+              <ul>
+                <li><code onclick="applySuggestedPrompt('sunset over snowy mountains')">sunset over snowy mountains</code></li>
+                <li><code onclick="applySuggestedPrompt('creeper in dense oak forest')">creeper in dense oak forest</code></li>
+                <li><code onclick="applySuggestedPrompt('pixel art castle on a cliff overlooking ocean')">pixel art castle on a cliff overlooking ocean</code></li>
+              </ul>
+            </div>
+          </div>
+
           <!-- Image Display State -->
           <div id="result-image-state" class="image-state hidden">
             <img id="generated-image" src="" alt="Generated MineArt Output">
-            <div class="result-actions">
-              <a id="download-btn" href="/api/download" download="mineart_diffusion_32x32.png" class="btn btn-secondary">Download Image (.png)</a>
+            
+            <!-- Minecraft In-Game Export Controls -->
+            <div class="minecraft-export-section">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem; text-align: left;">
+                <div>
+                  <label for="painting-slot-select" class="form-label" style="font-size: 0.75rem;">Painting Canvas Slot</label>
+                  <select id="painting-slot-select" class="form-select">
+                    <option value="bust" selected>Bust (2x2 Blocks — 128x128 px)</option>
+                    <option value="alban">Alban (1x1 Block — 64x64 px)</option>
+                    <option value="aztec">Aztec (1x1 Block — 64x64 px)</option>
+                    <option value="kebab">Kebab (1x1 Block — 64x64 px)</option>
+                    <option value="pool">The Pool (2x1 Blocks — 128x64 px)</option>
+                    <option value="match">Match (2x2 Blocks — 128x128 px)</option>
+                    <option value="skull_and_roses">Skull & Roses (2x2 Blocks — 128x128 px)</option>
+                    <option value="pointer">Pointer (4x4 Blocks — 256x256 px)</option>
+                    <option value="burningskull">Skull on Fire (4x4 Blocks — 256x256 px)</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="painting-style-select" class="form-label" style="font-size: 0.75rem;">Canvas Texture & Style</label>
+                  <select id="painting-style-select" class="form-select">
+                    <option value="vanilla_authentic" selected>🎨 Authentic Vanilla (16px/blk — Zetterstrand Oil Canvas)</option>
+                    <option value="crisp_hd">✨ Faithful HD (32px/blk — Dithered Pixel Art)</option>
+                    <option value="oil_studio">🖼️ Oil Painting Studio (64px/blk — Linen Weave)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.78rem; padding: 0.35rem 0.5rem; background: var(--bg-subtle); border-radius: 4px; border: 1px solid var(--border-color);">
+                <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; color: var(--text-main); font-weight: 500;">
+                  <input type="checkbox" id="painting-border-toggle" checked style="accent-color: var(--btn-primary-bg);">
+                  <span>🖼️ Authentic Wooden Frame Border (1-Pixel Zetterstrand Rim)</span>
+                </label>
+                <span style="font-size: 0.68rem; color: #166534; font-weight: 600; background: #dcfce7; padding: 0.1rem 0.35rem; border-radius: 3px;">Active</span>
+              </div>
+              <button type="button" class="btn btn-minecraft" id="export-mc-btn" onclick="handleExportToMinecraft()" style="width: 100%;">
+                🎮 Send to Minecraft Wall
+              </button>
             </div>
+
+            <!-- Download and Export Actions -->
+            <div class="result-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center;">
+              <a id="download-btn" href="/outputs/latest.png" download="mineart_painting.png" class="btn btn-secondary">Download PNG</a>
+              <a id="download-pack-btn" href="/api/download-pack" class="btn btn-outline">📦 Download Resource Pack (.zip)</a>
+            </div>
+
+            <!-- In-game placement instructions / feedback -->
+            <div id="minecraft-toast" class="mc-toast hidden"></div>
           </div>
 
         </div>
@@ -103,7 +180,7 @@
 
   </div>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
 
