@@ -658,9 +658,19 @@ def train_diffusion(
         if "loss" in checkpoint:
             best_loss = float(checkpoint["loss"])
 
-    end_epoch = start_epoch + epochs - 1
+        # If user specified target epochs e.g. 10 and start_epoch is 5, train 5 -> 10
+        if epochs >= start_epoch:
+            end_epoch = epochs
+            remaining_epochs = end_epoch - start_epoch + 1
+        else:
+            end_epoch = start_epoch + epochs - 1
+            remaining_epochs = epochs
+    else:
+        end_epoch = epochs
+        remaining_epochs = epochs
+
     steps_per_epoch = len(loader)
-    total_steps = epochs * steps_per_epoch
+    total_steps = remaining_epochs * steps_per_epoch
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, total_steps), eta_min=1e-5)
 
     null_tokens = dataset.tokenizer.null_tokens(dataset.max_prompt_length).to(device)
@@ -761,6 +771,9 @@ def train_diffusion(
             }, save_path / "best_diffusion.pt")
             print(f" -> [NEW BEST] Updated best_diffusion.pt with Loss: {best_loss:.5f}")
 
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+
     total_time = time.time() - t_start
     print(f"\n============================================================")
     print(f" Training Complete: {total_steps:,} steps in {total_time / 60:.2f} minutes.")
@@ -778,6 +791,8 @@ def generate_painting(
     output_path: str = "output_samples/painting.png",
     guidance_scale: float = 2.0,
     ddim_steps: int = 100,
+    save_framed: bool = True,
+    framed_style: str = "vanilla_authentic",
 ) -> str:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -842,7 +857,36 @@ def generate_painting(
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     img_pil.save(output_path)
-    print(f"Saved finished painting to: {output_path}")
+    print(f"Saved raw generated artwork to: {output_path}")
+
+    # Render authentic framed Minecraft painting canvas (border, linen weave, oil palette dithering)
+    if save_framed:
+        try:
+            try:
+                from scripts.minecraft_pack import render_minecraft_canvas_texture
+            except ImportError:
+                from minecraft_pack import render_minecraft_canvas_texture
+
+            w_blocks = max(1, target_w // 64)
+            h_blocks = max(1, target_h // 64)
+            framed_pil = render_minecraft_canvas_texture(
+                image=img_pil,
+                target_px=(target_w, target_h),
+                block_size=(w_blocks, h_blocks),
+                style=framed_style,
+                add_border=True,
+            )
+            out_p = Path(output_path)
+            framed_path = out_p.parent / f"{out_p.stem}_framed{out_p.suffix}"
+            framed_pil.save(framed_path)
+            print(f"Saved authentic framed Minecraft painting to: {framed_path}")
+
+            # Keep latest_framed.png updated for UI and in-game preview
+            latest_framed = out_p.parent / "latest_framed.png"
+            framed_pil.save(latest_framed)
+        except Exception as e:
+            print(f"[*] Note: Framing post-processor skipped: {e}")
+
     return output_path
 
 
@@ -857,6 +901,7 @@ def main() -> None:
     parser.add_argument("--max-samples", type=int, default=None, help="Limit number of training samples for fast testing")
     parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate")
     parser.add_argument("--resume", type=str, default=None, help="Resume training from checkpoint")
+    parser.add_argument("--save-dir", type=str, default="checkpoints", help="Directory where checkpoints are saved")
     parser.add_argument("--prompt", type=str, default=None, help="Text prompt for synthesis")
     parser.add_argument("--image", type=str, default=None, help="Input image for image-to-image painting variation")
     parser.add_argument("--ratio", type=str, default="1:1", choices=list(PAINTING_RATIOS.keys()), help="Painting aspect ratio: 1:1, 2:1, 1:2, 2:2, 3:3, 3:4, 4:3, 4:2, 4:4")
@@ -864,6 +909,8 @@ def main() -> None:
     parser.add_argument("--guidance", type=float, default=2.0, help="Classifier-free guidance scale (1.5 - 2.5)")
     parser.add_argument("--steps", type=int, default=100, help="DDIM sampling steps")
     parser.add_argument("--output", type=str, default="output_samples/painting.png", help="Output PNG path")
+    parser.add_argument("--style", type=str, default="vanilla_authentic", choices=["vanilla_authentic", "crisp_hd", "oil_studio"], help="Painting canvas texture style")
+    parser.add_argument("--no-framed", action="store_true", help="Skip rendering authentic framed Minecraft canvas")
     parser.add_argument("--checkpoint", type=str, default="checkpoints/best_diffusion.pt", help="Checkpoint path")
     parser.add_argument("--tokenizer", type=str, default="checkpoints/diffusion_tokenizer.json", help="Tokenizer path")
 
@@ -876,6 +923,7 @@ def main() -> None:
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
+            save_dir=args.save_dir,
             resume_path=args.resume,
             target_size=(args.size, args.size),
             max_samples=args.max_samples,
@@ -891,6 +939,8 @@ def main() -> None:
             output_path=args.output,
             guidance_scale=args.guidance,
             ddim_steps=args.steps,
+            save_framed=not args.no_framed,
+            framed_style=args.style,
         )
     else:
         parser.print_help()

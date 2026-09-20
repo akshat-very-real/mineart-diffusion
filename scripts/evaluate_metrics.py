@@ -17,6 +17,7 @@ from PIL import Image
 import scipy.linalg
 import torch
 import torch.nn as nn
+# pyrefly: ignore
 from torchvision import models, transforms
 from tqdm import tqdm
 

@@ -361,22 +361,33 @@ def main():
     parser.add_argument("--image", type=str, required=True, help="Input generated image path")
     parser.add_argument("--slot", type=str, default="bust", choices=list(PAINTING_SLOTS.keys()), help="Target painting slot")
     parser.add_argument("--ratio", type=str, default=None, help="Aspect ratio (1:1, 2:1, 2:2, 4:4)")
+    parser.add_argument("--style", type=str, default="vanilla_authentic", choices=["vanilla_authentic", "crisp_hd", "oil_studio"], help="Painting canvas texture style")
+    parser.add_argument("--no-border", action="store_true", help="Omit the oak wooden frame border")
+    parser.add_argument("--output-framed", type=str, default=None, help="Save standalone framed painting PNG to path")
     parser.add_argument("--install", action="store_true", help="Install directly into local .minecraft directory")
     parser.add_argument("--output-dir", type=str, default="modpack/MineArt_Pack", help="Output pack directory")
     parser.add_argument("--output-zip", type=str, default="modpack/MineArt_Pack.zip", help="Output standalone zip file")
 
     args = parser.parse_args()
+    add_border = not args.no_border
 
     if args.install:
         print(f"[*] Installing image '{args.image}' directly into live Minecraft...")
-        res = install_to_minecraft_live(args.image, slot=args.slot, ratio=args.ratio)
+        res = install_to_minecraft_live(args.image, slot=args.slot, ratio=args.ratio, style=args.style, add_border=add_border)
         print(f"[OK] Installed to: {res['target_file']}")
         print(f"[OK] {res['instructions']}")
+        if args.output_framed:
+            shutil.copy(res["target_file"], args.output_framed)
+            print(f"[OK] Saved framed painting preview to: {args.output_framed}")
     else:
         pack_dir = Path(args.output_dir)
         print(f"[*] Exporting painting to pack directory: {pack_dir}")
-        target_file, desc = export_painting_to_pack(args.image, pack_dir, slot=args.slot, ratio=args.ratio)
+        target_file, desc = export_painting_to_pack(args.image, pack_dir, slot=args.slot, ratio=args.ratio, style=args.style, add_border=add_border)
         print(f"[OK] Texture written to: {target_file} ({desc})")
+
+        if args.output_framed:
+            shutil.copy(target_file, args.output_framed)
+            print(f"[OK] Saved framed painting preview to: {args.output_framed}")
 
         zip_p = create_standalone_zip(pack_dir, Path(args.output_zip))
         print(f"[OK] Created standalone zip: {zip_p}")

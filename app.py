@@ -98,6 +98,26 @@ def run_diffusion_generation(prompt: str, ratio: str, steps: int, guidance: floa
             img.save(output_path)
 
     shutil.copy(output_path, latest_path)
+
+    # Always ensure authentic framed painting preview exists matching latest_framed.png
+    try:
+        from PIL import Image
+        from scripts.minecraft_pack import render_minecraft_canvas_texture
+
+        with Image.open(output_path) as raw_gen:
+            framed_img = render_minecraft_canvas_texture(
+                image=raw_gen.convert("RGB"),
+                target_px=(128, 128),
+                block_size=(2, 2),
+                style="vanilla_authentic",
+                add_border=True,
+            )
+            framed_img.save(OUTPUT_DIR / "latest_framed.png")
+            framed_ts_path = OUTPUT_DIR / f"painting_{timestamp}_framed.png"
+            framed_img.save(framed_ts_path)
+    except Exception as e:
+        print(f"[*] Note: Framing preview skipped: {e}")
+
     return output_filename
 
 
@@ -169,6 +189,7 @@ async def generate_artwork(request: Request):
     return {
         "success": True,
         "image_url": f"/outputs/{filename}",
+        "framed_url": "/outputs/latest_framed.png",
         "download_url": f"/outputs/{filename}",
         "filename": filename,
         "prompt_used": prompt_str,
