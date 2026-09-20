@@ -144,60 +144,63 @@ def render_minecraft_canvas_texture(
         canvas_h = max(16, h_blocks * 16)
         border_px = 1 if add_border else 0
         dither_colors = 64
-        contrast_boost = 1.25
-        saturation_boost = 1.25
+        contrast_boost = 1.45
+        saturation_boost = 1.30
     elif style == "crisp_hd":
         canvas_w = max(32, w_blocks * 32)
         canvas_h = max(32, h_blocks * 32)
         border_px = 2 if add_border else 0
         dither_colors = 96
-        contrast_boost = 1.20
-        saturation_boost = 1.20
+        contrast_boost = 1.35
+        saturation_boost = 1.25
     else:  # oil_studio
         canvas_w = max(64, w_blocks * 64)
         canvas_h = max(64, h_blocks * 64)
         border_px = 3 if add_border else 0
         dither_colors = 160
-        contrast_boost = 1.15
-        saturation_boost = 1.15
+        contrast_boost = 1.25
+        saturation_boost = 1.20
 
     # 1. Determine inner canvas dimensions (framed area)
     inner_w = canvas_w - (2 * border_px)
     inner_h = canvas_h - (2 * border_px)
 
-    # Downscale artwork to fit inside the frame with edge-preserving unsharp mask
-    grid = image.resize((inner_w, inner_h), Image.Resampling.BILINEAR)
-    grid = grid.filter(ImageFilter.UnsharpMask(radius=1.2, percent=160, threshold=1))
-
-    # 2. Rich oil paint pigment color grading (removes flat downscaled camera look)
+    # 2. Rich oil paint pigment color grading & edge sharpening before quantization
+    grid = image.convert("RGB")
     enhancer = ImageEnhance.Contrast(grid)
     grid = enhancer.enhance(contrast_boost)
     enhancer = ImageEnhance.Color(grid)
     grid = enhancer.enhance(saturation_boost)
+    # High-pass unsharp mask to accentuate Minecraft voxel structures and contours
+    grid = grid.filter(ImageFilter.UnsharpMask(radius=2.2, percent=220, threshold=1))
 
-    # 3. Procedural linen canvas weave modulation
+    # 3. Discrete pixel-grid snapping: downscale using BOX sampling to avoid bilinear blurring
+    grid = grid.resize((inner_w, inner_h), Image.Resampling.BOX)
+
+    # 4. Procedural linen canvas weave modulation
     arr_inner = np.array(grid, dtype=np.float32)
     H, W, _ = arr_inner.shape
 
     # Periodic thread weave
     y_idx = np.arange(H)[:, None]
     x_idx = np.arange(W)[None, :]
-    weave = np.sin(y_idx * np.pi) * 3.0 + np.cos(x_idx * np.pi) * 3.0
+    weave = np.sin(y_idx * np.pi) * 2.5 + np.cos(x_idx * np.pi) * 2.5
 
     # Fine organic canvas fiber noise
     rng = np.random.RandomState(42)
-    fiber_noise = rng.uniform(-2.5, 2.5, (H, W))
+    fiber_noise = rng.uniform(-2.0, 2.0, (H, W))
     arr_inner = np.clip(arr_inner + (weave + fiber_noise)[:, :, None], 0, 255)
 
-    # 4. Recessed canvas bevel shadow (edge darkening where canvas sits inside the wooden frame)
-    arr_inner[0, :] *= 0.82
-    arr_inner[-1, :] *= 0.88
-    arr_inner[:, 0] *= 0.82
-    arr_inner[:, -1] *= 0.88
+    # 5. Recessed canvas bevel shadow (edge darkening where canvas sits inside the wooden frame)
+    if border_px > 0:
+        arr_inner[0, :] *= 0.80
+        arr_inner[-1, :] *= 0.88
+        arr_inner[:, 0] *= 0.80
+        arr_inner[:, -1] *= 0.88
 
     textured_inner = Image.fromarray(np.uint8(np.clip(arr_inner, 0, 255)))
 
-    # 5. Authentic oil palette quantization & Floyd-Steinberg dithering
+    # 6. Authentic oil palette quantization & Floyd-Steinberg dithering
     quantized_inner = textured_inner.quantize(
         colors=dither_colors,
         method=Image.Quantize.MEDIANCUT,

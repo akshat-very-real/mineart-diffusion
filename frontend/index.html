@@ -118,6 +118,11 @@
 
           <!-- Image Display State -->
           <div id="result-image-state" class="image-state hidden">
+            <!-- Authentic Framed vs Raw Texture Toggle -->
+            <div class="mode-selector" style="margin-bottom: 0.75rem;">
+              <button type="button" class="mode-btn active" id="view-framed-btn" onclick="toggleViewMode('framed')">🖼️ Authentic Framed Canvas</button>
+              <button type="button" class="mode-btn" id="view-raw-btn" onclick="toggleViewMode('raw')">🎨 Raw Pixel Texture</button>
+            </div>
             <img id="generated-image" src="" alt="Generated MineArt Output">
             
             <!-- Minecraft In-Game Export Controls -->

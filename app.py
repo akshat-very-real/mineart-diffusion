@@ -9,7 +9,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,7 +59,15 @@ class ExportMinecraftRequest(BaseModel):
     add_border: Optional[bool] = True
 
 
-def run_diffusion_generation(prompt: str, ratio: str, steps: int, guidance: float) -> str:
+def run_diffusion_generation(
+    prompt: str,
+    ratio: str = "1:1",
+    steps: int = 50,
+    guidance: float = 2.5,
+    input_image_path: Optional[str] = None,
+    strength: float = 0.55,
+    framed_style: str = "vanilla_authentic",
+) -> Dict[str, str]:
     """Invokes the diffusion generation pipeline synchronously inside a worker thread."""
     from scripts.diffusion import generate_painting
 
@@ -68,7 +76,7 @@ def run_diffusion_generation(prompt: str, ratio: str, steps: int, guidance: floa
 
     # Fallback to local raw checkpoint if best_diffusion is absent
     if not checkpoint.exists():
-        fallback_ckpt = BASE_DIR / "checkpoints" / "mineart_diffusion_epoch_3.pt"
+        fallback_ckpt = BASE_DIR / "checkpoints" / "mineart_diffusion_epoch_10.pt"
         if fallback_ckpt.exists():
             checkpoint = fallback_ckpt
 
@@ -76,19 +84,26 @@ def run_diffusion_generation(prompt: str, ratio: str, steps: int, guidance: floa
     output_filename = f"painting_{timestamp}.png"
     output_path = OUTPUT_DIR / output_filename
     latest_path = OUTPUT_DIR / "latest.png"
+    framed_filename = f"painting_{timestamp}_framed.png"
+    framed_path = OUTPUT_DIR / framed_filename
+    latest_framed_path = OUTPUT_DIR / "latest_framed.png"
 
     if checkpoint.exists() and tokenizer.exists():
         generate_painting(
             prompt=prompt,
             ratio=ratio,
+            input_image_path=input_image_path,
+            strength=strength,
             checkpoint_path=str(checkpoint),
             tokenizer_path=str(tokenizer),
             output_path=str(output_path),
             guidance_scale=guidance,
             ddim_steps=steps,
+            save_framed=True,
+            framed_style=framed_style,
         )
     else:
-        # Graceful fallback demo image if training is active on cloud
+        # Graceful fallback demo image if checkpoint not yet compiled
         sample_source = BASE_DIR / "data" / "processed_64x64" / "acacia_chicken_001_C.png"
         if sample_source.exists():
             shutil.copy(sample_source, output_path)
@@ -109,16 +124,18 @@ def run_diffusion_generation(prompt: str, ratio: str, steps: int, guidance: floa
                 image=raw_gen.convert("RGB"),
                 target_px=(128, 128),
                 block_size=(2, 2),
-                style="vanilla_authentic",
+                style=framed_style,
                 add_border=True,
             )
-            framed_img.save(OUTPUT_DIR / "latest_framed.png")
-            framed_ts_path = OUTPUT_DIR / f"painting_{timestamp}_framed.png"
-            framed_img.save(framed_ts_path)
+            framed_img.save(latest_framed_path)
+            framed_img.save(framed_path)
     except Exception as e:
         print(f"[*] Note: Framing preview skipped: {e}")
 
-    return output_filename
+    return {
+        "raw_filename": output_filename,
+        "framed_filename": framed_filename,
+    }
 
 
 @app.post("/api/generate")
@@ -129,7 +146,8 @@ async def generate_artwork(request: Request):
     mode = "text"
     ratio = "1:1"
     steps = 50
-    guidance = 2.0
+    guidance = 2.5
+    input_image_path = None
 
     safety_filter = True
     if "application/json" in content_type:
@@ -139,7 +157,7 @@ async def generate_artwork(request: Request):
             mode = str(data.get("mode", "text"))
             ratio = str(data.get("ratio", "1:1"))
             steps = int(data.get("steps", 50))
-            guidance = float(data.get("guidance", 2.0))
+            guidance = float(data.get("guidance", 2.5))
             safety_filter = bool(data.get("safety_filter", True))
         except Exception:
             prompt = ""
@@ -150,8 +168,20 @@ async def generate_artwork(request: Request):
         mode = str(form.get("mode", "text"))
         ratio = str(form.get("ratio", "1:1"))
         steps = int(form.get("steps", 50))
-        guidance = float(form.get("guidance", 2.0))
+        guidance = float(form.get("guidance", 2.5))
         safety_filter = str(form.get("safety_filter", "true")).lower() in ("true", "1", "yes")
+
+        # Handle uploaded image for Image-to-Image stylization
+        uploaded_file = form.get("file")
+        if uploaded_file and hasattr(uploaded_file, "filename") and uploaded_file.filename:
+            uploads_dir = BASE_DIR / "uploads"
+            uploads_dir.mkdir(parents=True, exist_ok=True)
+            saved_name = f"upload_{int(time.time())}_{uploaded_file.filename}"
+            saved_path = uploads_dir / saved_name
+            content = await uploaded_file.read()
+            with open(saved_path, "wb") as f:
+                f.write(content)
+            input_image_path = str(saved_path)
 
     prompt_str = prompt.strip() if prompt else ""
 
@@ -172,26 +202,28 @@ async def generate_artwork(request: Request):
             )
 
     if not prompt_str:
-        prompt_str = "minecraft landscape painting"
+        prompt_str = "minecraft authentic landscape painting" if mode == "text" else "minecraft painting"
 
     # Offload diffusion model inference to background thread pool
     try:
-        filename = await asyncio.to_thread(
+        res = await asyncio.to_thread(
             run_diffusion_generation,
             prompt=prompt_str,
             ratio=ratio,
             steps=steps,
             guidance=guidance,
+            input_image_path=input_image_path,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Diffusion generation error: {str(e)}")
 
     return {
         "success": True,
-        "image_url": f"/outputs/{filename}",
-        "framed_url": "/outputs/latest_framed.png",
-        "download_url": f"/outputs/{filename}",
-        "filename": filename,
+        "image_url": f"/outputs/{res['framed_filename']}",
+        "framed_url": f"/outputs/{res['framed_filename']}",
+        "raw_url": f"/outputs/{res['raw_filename']}",
+        "download_url": f"/outputs/{res['framed_filename']}",
+        "filename": res["framed_filename"],
         "prompt_used": prompt_str,
     }
 

@@ -337,7 +337,17 @@ class MineArtUNet(nn.Module):
         prompt_tokens: torch.Tensor,
     ) -> torch.Tensor:
         time_emb = self.time_mlp(timesteps)
-        text_emb = self.text_embedding(prompt_tokens).mean(dim=1)
+
+        # Masked pooling: ignores <pad> tokens (idx 0) so short prompts retain full signal
+        mask = (prompt_tokens != 0).unsqueeze(-1).float()
+        raw_text_emb = self.text_embedding(prompt_tokens)
+        has_tokens = (mask.sum(dim=1) > 0).squeeze(-1)
+        text_emb = torch.zeros((prompt_tokens.shape[0], raw_text_emb.shape[-1]), device=x.device, dtype=raw_text_emb.dtype)
+        if has_tokens.any():
+            text_emb[has_tokens] = (raw_text_emb[has_tokens] * mask[has_tokens]).sum(dim=1) / mask[has_tokens].sum(dim=1).clamp(min=1.0)
+        if (~has_tokens).any():
+            text_emb[~has_tokens] = raw_text_emb[~has_tokens].mean(dim=1)
+
         text_emb = self.text_proj(text_emb)
         cond = torch.cat([time_emb, text_emb], dim=-1)
 

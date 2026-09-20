@@ -4,7 +4,29 @@
 
 let currentMode = "text";
 let selectedFile = null;
-let currentDownloadUrl = "/outputs/latest.png";
+let currentFramedUrl = "/outputs/latest_framed.png";
+let currentRawUrl = "/outputs/latest.png";
+let activeViewMode = "framed";
+let currentDownloadUrl = "/outputs/latest_framed.png";
+
+function toggleViewMode(mode) {
+  activeViewMode = mode;
+  const isFramed = mode === "framed";
+  document.getElementById("view-framed-btn")?.classList.toggle("active", isFramed);
+  document.getElementById("view-raw-btn")?.classList.toggle("active", !isFramed);
+
+  const imgEl = document.getElementById("generated-image");
+  const downloadEl = document.getElementById("download-btn");
+  const activeUrl = isFramed ? currentFramedUrl : currentRawUrl;
+
+  if (imgEl && activeUrl) {
+    imgEl.src = activeUrl + "?t=" + Date.now();
+  }
+  if (downloadEl && activeUrl) {
+    downloadEl.href = activeUrl;
+    downloadEl.setAttribute("download", isFramed ? "mineart_painting_framed.png" : "mineart_painting_raw.png");
+  }
+}
 
 function setMode(mode) {
   currentMode = mode;
@@ -180,18 +202,12 @@ async function handleGenerate() {
     }
 
     const data = await response.json();
-    currentDownloadUrl = data.download_url || "/outputs/latest.png";
+    currentFramedUrl = data.framed_url || data.image_url;
+    currentRawUrl = data.raw_url || "/outputs/latest.png";
+    currentDownloadUrl = currentFramedUrl;
     
-    // Display result image with cache-busting timestamp
-    const imgEl = document.getElementById("generated-image");
-    imgEl.src = data.image_url + "?t=" + Date.now();
-    
-    const downloadEl = document.getElementById("download-btn");
-    if (downloadEl) {
-      downloadEl.href = currentDownloadUrl;
-      downloadEl.setAttribute("download", "mineart_painting.png");
-    }
-    
+    // Display authentic framed painting preview by default
+    toggleViewMode("framed");
     showResultView("image");
 
   } catch (err) {
