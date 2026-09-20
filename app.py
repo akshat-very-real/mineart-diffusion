@@ -65,16 +65,16 @@ def run_diffusion_generation(
     steps: int = 50,
     guidance: float = 2.5,
     input_image_path: Optional[str] = None,
-    strength: float = 0.55,
+    strength: float = 0.0,
     framed_style: str = "vanilla_authentic",
 ) -> Dict[str, str]:
     """Invokes the diffusion generation pipeline synchronously inside a worker thread."""
-    from scripts.diffusion import generate_painting
+    from scripts.diffusion import PAINTING_RATIOS, generate_painting
+    from scripts.minecraft_pack import render_minecraft_canvas_texture
 
     checkpoint = BASE_DIR / "checkpoints" / "best_diffusion.pt"
     tokenizer = BASE_DIR / "checkpoints" / "diffusion_tokenizer.json"
 
-    # Fallback to local raw checkpoint if best_diffusion is absent
     if not checkpoint.exists():
         fallback_ckpt = BASE_DIR / "checkpoints" / "mineart_diffusion_epoch_10.pt"
         if fallback_ckpt.exists():
@@ -88,12 +88,44 @@ def run_diffusion_generation(
     framed_path = OUTPUT_DIR / framed_filename
     latest_framed_path = OUTPUT_DIR / "latest_framed.png"
 
+    target_w, target_h = PAINTING_RATIOS.get(ratio, (64, 64))
+    w_blocks = max(1, target_w // 64)
+    h_blocks = max(1, target_h // 64)
+
+    # 1. Direct 100% Faithful Painting Stylizer (strength == 0.0):
+    # Preserves 100% of user's uploaded image structure, converting it into an authentic
+    # Kristoffer Zetterstrand Minecraft oil painting with wooden frame & voxel pixel snapping.
+    if input_image_path is not None and strength <= 0.05:
+        from PIL import Image
+        with Image.open(input_image_path) as raw_input:
+            input_rgb = raw_input.convert("RGB")
+            # Save raw downsampled version
+            raw_rgb = input_rgb.resize((target_w, target_h), Image.Resampling.BOX)
+            raw_rgb.save(output_path)
+            shutil.copy(output_path, latest_path)
+
+            framed_img = render_minecraft_canvas_texture(
+                image=input_rgb,
+                target_px=(target_w, target_h),
+                block_size=(w_blocks, h_blocks),
+                style=framed_style,
+                add_border=True,
+            )
+            framed_img.save(latest_framed_path)
+            framed_img.save(framed_path)
+
+        return {
+            "raw_filename": output_filename,
+            "framed_filename": framed_filename,
+        }
+
+    # 2. Diffusion Pipeline (Text-to-Image or AI Image-to-Image Diffusion)
     if checkpoint.exists() and tokenizer.exists():
         generate_painting(
             prompt=prompt,
             ratio=ratio,
             input_image_path=input_image_path,
-            strength=strength,
+            strength=strength if strength > 0.05 else 0.25,
             checkpoint_path=str(checkpoint),
             tokenizer_path=str(tokenizer),
             output_path=str(output_path),
@@ -103,7 +135,6 @@ def run_diffusion_generation(
             framed_style=framed_style,
         )
     else:
-        # Graceful fallback demo image if checkpoint not yet compiled
         sample_source = BASE_DIR / "data" / "processed_64x64" / "acacia_chicken_001_C.png"
         if sample_source.exists():
             shutil.copy(sample_source, output_path)
@@ -117,8 +148,6 @@ def run_diffusion_generation(
     # Always ensure authentic framed painting preview exists matching latest_framed.png
     try:
         from PIL import Image
-        from scripts.minecraft_pack import render_minecraft_canvas_texture
-
         with Image.open(output_path) as raw_gen:
             framed_img = render_minecraft_canvas_texture(
                 image=raw_gen.convert("RGB"),
@@ -147,6 +176,7 @@ async def generate_artwork(request: Request):
     ratio = "1:1"
     steps = 50
     guidance = 2.5
+    strength = 0.0
     input_image_path = None
 
     safety_filter = True
@@ -158,6 +188,7 @@ async def generate_artwork(request: Request):
             ratio = str(data.get("ratio", "1:1"))
             steps = int(data.get("steps", 50))
             guidance = float(data.get("guidance", 2.5))
+            strength = float(data.get("strength", 0.0))
             safety_filter = bool(data.get("safety_filter", True))
         except Exception:
             prompt = ""
@@ -169,6 +200,7 @@ async def generate_artwork(request: Request):
         ratio = str(form.get("ratio", "1:1"))
         steps = int(form.get("steps", 50))
         guidance = float(form.get("guidance", 2.5))
+        strength = float(form.get("strength", 0.0))
         safety_filter = str(form.get("safety_filter", "true")).lower() in ("true", "1", "yes")
 
         # Handle uploaded image for Image-to-Image stylization
@@ -213,6 +245,7 @@ async def generate_artwork(request: Request):
             steps=steps,
             guidance=guidance,
             input_image_path=input_image_path,
+            strength=strength,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Diffusion generation error: {str(e)}")

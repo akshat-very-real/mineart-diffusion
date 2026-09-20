@@ -16,15 +16,20 @@ function toggleViewMode(mode) {
   document.getElementById("view-raw-btn")?.classList.toggle("active", !isFramed);
 
   const imgEl = document.getElementById("generated-image");
-  const downloadEl = document.getElementById("download-btn");
+  const downloadFramedEl = document.getElementById("download-btn");
+  const downloadRawEl = document.getElementById("download-raw-btn");
   const activeUrl = isFramed ? currentFramedUrl : currentRawUrl;
 
   if (imgEl && activeUrl) {
     imgEl.src = activeUrl + "?t=" + Date.now();
   }
-  if (downloadEl && activeUrl) {
-    downloadEl.href = activeUrl;
-    downloadEl.setAttribute("download", isFramed ? "mineart_painting_framed.png" : "mineart_painting_raw.png");
+  if (downloadFramedEl && currentFramedUrl) {
+    downloadFramedEl.href = currentFramedUrl;
+    downloadFramedEl.setAttribute("download", "mineart_framed_painting.png");
+  }
+  if (downloadRawEl && currentRawUrl) {
+    downloadRawEl.href = currentRawUrl;
+    downloadRawEl.setAttribute("download", "mineart_raw_texture.png");
   }
 }
 
@@ -167,6 +172,8 @@ async function handleGenerate() {
       const formData = new FormData();
       formData.append("file", selectedFile);
       formData.append("mode", "image");
+      const strengthVal = document.getElementById("img-strength-select")?.value || "0.0";
+      formData.append("strength", strengthVal);
       formData.append("safety_filter", safetyFilterEnabled ? "true" : "false");
       response = await fetch("/api/generate", {
         method: "POST",

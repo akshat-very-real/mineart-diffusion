@@ -72,6 +72,19 @@
               <button type="button" class="clear-btn" onclick="clearUpload(event)">Remove Image</button>
             </div>
           </div>
+
+          <!-- Painting Transformation Mode Selector -->
+          <div style="margin-top: 0.75rem;">
+            <label for="img-strength-select" class="form-label">Painting Stylization Mode</label>
+            <select id="img-strength-select" class="form-select" style="width: 100%; padding: 0.45rem; border: 1px solid var(--border-color); border-radius: var(--radius); font-size: 0.8125rem; background: var(--bg-card); color: var(--text-main);">
+              <option value="0.0" selected>🎨 100% Faithful Painting (Pure Canvas Shader + Wood Frame)</option>
+              <option value="0.22">✨ Gentle AI Diffusion (Subtle Painterly Brushstrokes)</option>
+              <option value="0.40">🌪️ Creative Diffusion (Painterly Reimagining)</option>
+            </select>
+            <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">
+              "100% Faithful" guarantees your uploaded image structure is preserved, converting it into a discrete 16px pixel-art oil painting with the authentic wooden border.
+            </p>
+          </div>
         </div>
 
         <!-- ACTION BUTTON -->
@@ -165,7 +178,8 @@
 
             <!-- Download and Export Actions -->
             <div class="result-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center;">
-              <a id="download-btn" href="/outputs/latest.png" download="mineart_painting.png" class="btn btn-secondary">Download PNG</a>
+              <a id="download-btn" href="/outputs/latest_framed.png" download="mineart_framed_painting.png" class="btn btn-primary" style="font-weight: 600;">🖼️ Download Framed Painting (with Wood Border)</a>
+              <a id="download-raw-btn" href="/outputs/latest.png" download="mineart_raw_texture.png" class="btn btn-secondary">🎨 Download Raw Texture</a>
               <a id="download-pack-btn" href="/api/download-pack" class="btn btn-outline">📦 Download Resource Pack (.zip)</a>
             </div>
 
@@ -185,7 +199,7 @@
 
   </div>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
 
